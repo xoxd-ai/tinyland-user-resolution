@@ -1505,10 +1505,79 @@ describe('tinyland-user-resolution', () => {
     });
 
     it('should handle RESERVED_ROUTES being frozen/immutable (read-only check)', () => {
-      
+
       const copy = [...RESERVED_ROUTES];
       expect(copy).toEqual(RESERVED_ROUTES);
       expect(copy.length).toBe(RESERVED_ROUTES.length);
+    });
+  });
+
+  // TIN-2788 (operator-ratified Option A) / TIN-455: public `@handle` authority IS
+  // admin-user (directory) authority. `resolveUser('jesssullivan')` MUST resolve via
+  // the repository-backed directory branch (`findUserByHandle`), never the profile
+  // fallback (declined Option B) and never `null`. This locks the contract that
+  // `src/hooks.server.ts` installs via `configureUserResolution({ findUserByHandle })`,
+  // where `findUserByHandle` delegates to `publicHandleDirectory.findByHandle` ->
+  // `adminUserRepository` (backingFile `content/auth/admin-users.json`).
+  describe('TIN-2788 / TIN-455: jesssullivan directory authority (Option A)', () => {
+    const JESS = makeAdminUser({
+      id: 'admin-jesssullivan',
+      handle: 'jesssullivan',
+      displayName: 'Jess Sullivan',
+      role: 'super_admin',
+    });
+
+    it('resolves jesssullivan via the directory branch when the admin-user record exists', async () => {
+      const findUserByHandle = vi.fn().mockResolvedValue(JESS);
+      const loadProfiles = vi.fn().mockResolvedValue([]);
+      configure(createMockConfig({ findUserByHandle, loadProfiles }));
+
+      const result = await resolveUser('jesssullivan');
+
+      expect(result).not.toBeNull();
+      // Directory (admin-user) branch — not profile, not noauth.
+      expect(result!.source).toBe('directory');
+      expect(result!.handle).toBe('jesssullivan');
+      expect(result!.displayName).toBe('Jess Sullivan');
+      expect(result!.role).toBe('super_admin');
+      expect(result!.id).toBe('admin-jesssullivan');
+      expect(result!.dbUser).toBe(JESS);
+      // Option A, not Option B: the profile fallback must not be consulted.
+      expect(findUserByHandle).toHaveBeenCalledWith('jesssullivan');
+      expect(loadProfiles).not.toHaveBeenCalled();
+    });
+
+    it('directory record wins even when a profile also exists for jesssullivan', async () => {
+      const findUserByHandle = vi.fn().mockResolvedValue(JESS);
+      const loadProfiles = vi.fn().mockResolvedValue([
+        makeProfile({
+          slug: 'jesssullivan',
+          metadata: { handle: 'jesssullivan', name: 'Profile Jess', role: 'member' },
+        }),
+      ]);
+      configure(createMockConfig({ findUserByHandle, loadProfiles }));
+
+      const result = await resolveUser('jesssullivan');
+
+      expect(result!.source).toBe('directory');
+      expect(result!.role).toBe('super_admin');
+      expect(loadProfiles).not.toHaveBeenCalled();
+    });
+
+    it('does NOT resolve jesssullivan when the admin-user store is empty (current empty-PVC prod state)', async () => {
+      // Mirrors prod today: the `sveltekit-content` PVC is empty (TIN-1952), so there
+      // is no directory record and no profile — resolveUser falls through to null.
+      // The record must be minted at runtime (bootstrap / invite-accept); a repo-side
+      // `content/auth/admin-users.json` seed cannot reach the PVC (it is shadowed by
+      // the PVC mount at /app/content). See docs/runbooks/tin-2788-jesssullivan-directory-record.md.
+      const findUserByHandle = vi.fn().mockResolvedValue(null);
+      const loadProfiles = vi.fn().mockResolvedValue([]);
+      configure(createMockConfig({ findUserByHandle, loadProfiles }));
+
+      const result = await resolveUser('jesssullivan');
+
+      expect(result).toBeNull();
+      expect(findUserByHandle).toHaveBeenCalledWith('jesssullivan');
     });
   });
 });
