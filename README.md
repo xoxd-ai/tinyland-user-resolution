@@ -6,7 +6,7 @@ this repository is archived. Nothing here receives updates.
 
 ## Replacement
 
-- Bazel module: `tummycrypt_tinyland_content` 0.11.0 or later, from the
+- Bazel module: `tummycrypt_tinyland_content` 1.1.0 or later, from the
   Tinyland Bazel registry (`xoxd-ai/bazel-registry`). Bazel is the only
   distribution path (RU6).
 - Import path: `@tummycrypt/tinyland-content/user-resolution`, with the same
@@ -26,7 +26,7 @@ this repository is archived. Nothing here receives updates.
 
 1. Drop `bazel_dep(name = "tummycrypt_tinyland_user_resolution", ...)`, any
    `single_version_override` for it and its `npm_link_package`.
-2. Depend on `bazel_dep(name = "tummycrypt_tinyland_content", version = "0.11.0")`
+2. Depend on `bazel_dep(name = "tummycrypt_tinyland_content", version = "1.1.0")`
    or later.
 3. Replace `from '@tummycrypt/tinyland-user-resolution'` with
    `from '@tummycrypt/tinyland-content/user-resolution'`. Use the same
